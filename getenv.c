@@ -1,70 +1,93 @@
-#include "header.h"
+#include "shell.h"
 
 /**
- * _get_env - gets the current env
- * @env: the env
- * Return: _env_parser function on success, NULL on failure
-**/
-char **_get_env(char *env)
+ * get_environ - returns the string array copy of our environ
+ * @info: Structure containing potential arguments. Used to maintain
+ *          constant function prototype.
+ * Return: Always 0
+ */
+char **get_environ(info_t *info)
 {
-	int inner;
-	int outer;
-	char *name = NULL;
-
-	for (outer = 0; environ[outer] != NULL; outer++)
+	if (!info->environ || info->env_changed)
 	{
-		for (inner = 0; environ[outer][inner] != '='; inner++)
-		{
-			if (environ[outer][inner] != env[inner])
-				break;
-			if (environ[outer][inner] == env[inner])
-			{
-				if (env[inner + 1] == '\0' && environ[outer][inner + 1] == '=')
-				{
-					name = _strdup(&(environ[outer][inner + 2]));
-					return (_env_parser(name));
-				}
-			}
-		}
+		info->environ = list_to_strings(info->env);
+		info->env_changed = 0;
 	}
-	return (NULL);
+
+	return (info->environ);
 }
 
 /**
- * _env_parser- tokenizes the PATH
- * @name: the full PATH seperated by :'s
- * Return: an array of strings
-**/
-char **_env_parser(char *name)
+ * _unsetenv - Remove an environment variable
+ * @info: Structure containing potential arguments. Used to maintain
+ *        constant function prototype.
+ *  Return: 1 on delete, 0 otherwise
+ * @var: the string env var property
+ */
+int _unsetenv(info_t *info, char *var)
 {
-	int token_inc;
-	int tokencount;
-	char *tokenize = NULL;
-	int i;
-	char **p = NULL;
-	char *namestore = name;
+	list_t *node = info->env;
+	size_t i = 0;
+	char *p;
 
-	tokencount = 0;
-	for (i = 0; name[i] != '\0'; i++)
+	if (!node || !var)
+		return (0);
+
+	while (node)
 	{
-		if (name[i] == ':')
+		p = starts_with(node->str, var);
+		if (p && *p == '=')
 		{
-			tokencount++;
+			info->env_changed = delete_node_at_index(&(info->env), i);
+			i = 0;
+			node = info->env;
+			continue;
 		}
+		node = node->next;
+		i++;
 	}
-	p = malloc(sizeof(char *) * (tokencount + 2));
-	if (p != NULL)
+	return (info->env_changed);
+}
+
+/**
+ * _setenv - Initialize a new environment variable,
+ *             or modify an existing one
+ * @info: Structure containing potential arguments. Used to maintain
+ *        constant function prototype.
+ * @var: the string env var property
+ * @value: the string env var value
+ *  Return: Always 0
+ */
+int _setenv(info_t *info, char *var, char *value)
+{
+	char *buf = NULL;
+	list_t *node;
+	char *p;
+
+	if (!var || !value)
+		return (0);
+
+	buf = malloc(_strlen(var) + _strlen(value) + 2);
+	if (!buf)
+		return (1);
+	_strcpy(buf, var);
+	_strcat(buf, "=");
+	_strcat(buf, value);
+	node = info->env;
+	while (node)
 	{
-		token_inc = 0;
-		tokenize = strtok(name, ":");
-		while (token_inc < (tokencount + 1))
+		p = starts_with(node->str, var);
+		if (p && *p == '=')
 		{
-			p[token_inc] = _strdup(tokenize);
-			tokenize = strtok(NULL, ":");
-			token_inc++;
+			free(node->str);
+			node->str = buf;
+			info->env_changed = 1;
+			return (0);
 		}
-	p[token_inc] = NULL;
+		node = node->next;
 	}
-	free(namestore);
-	return (p);
+	add_node_end(&(info->env), buf, 0);
+	free(buf);
+	info->env_changed = 1;
+	return (0);
 }
